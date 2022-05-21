@@ -484,7 +484,7 @@ CY_RETURN_STATUS GpioWrite(int deviceNumber, int interfaceNum, UINT8 gpioNumber,
 
 int SetProjectorOnOff(int deviceNumber, int interfaceNum, int PorjectorEnable) {
 	int status;
-	UINT8 GpioNum = 2;
+	UINT8 GpioNum = 7;
 	status = GpioWrite(deviceNumber, interfaceNum, GpioNum, PorjectorEnable);
 	if (status != CY_SUCCESS)
 	{

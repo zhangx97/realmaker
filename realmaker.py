@@ -379,27 +379,29 @@ def build_a_layer(layer_num):#新建图层
         path = file_path + "/" + "images/{0:0>4}.png"
         imageFile = path.format(layer_num)
         imageFileMask = LayerMask(imageFile)     #layer mask image
+        CuringTimeParam = float(LayerResinCuringTime * 60)
+        light_engine.SPIPrint(CuringTimeParam, imageFileMask)
         #image1 = Image.open(imageFileMask)
-        image2 = ImageTk.PhotoImage(imageFileMask)
-        PreViewImage.configure(image=image2)
-        PreViewImage.image = image2
-        root.update()
+        #image2 = ImageTk.PhotoImage(imageFileMask)
+        #PreViewImage.configure(image=image2)
+        #PreViewImage.image = image2
+        #root.update()
     except Exception, e:
         logger.info('UI error when change photo!')
         PrintException = "UI error when change photo!"
         PrintState = states[1]
         return
             
-    timestart = time.time()
-    timeend = time.time()
-    CuringTimePass = timeend - timestart
-    while CuringTimePass < LayerResinCuringTime:
-        root.update()
-        time.sleep(0.1)
-        timeend = time.time()
-        CuringTimePass = timeend - timestart
+    #timestart = time.time()
+    #timeend = time.time()
+    #CuringTimePass = timeend - timestart
+    #while CuringTimePass < LayerResinCuringTime:
+        #root.update()
+        #time.sleep(0.1)
+        #timeend = time.time()
+        #CuringTimePass = timeend - timestart
                 
-    print "Real " + str(CuringTimePass)+" senconds Curing" + "count: " + str(layer_num)
+    #print "Real " + str(CuringTimePass)+" senconds Curing" + "count: " + str(layer_num)
 
     finish_count = finish_count + 1
     PrintBlackScreen()
@@ -432,11 +434,15 @@ def ImageProjection(img_name):#图像投影
     try:
         imageFile = file_path + "/projection/" + img_name
         imageFileMask = LayerMask(imageFile)     #layer mask image
+        ret = light_engine.SPIPrint(3600,imageFileMask)
+        if not ret:
+            logger.info("ImageProjection SPIPrint False")
+            return False
         #image1 = Image.open(imageFileMask)
-        image2 = ImageTk.PhotoImage(imageFileMask)
-        PreViewImage.configure(image=image2)
-        PreViewImage.image = image2
-        root.update()#刷新屏幕，投影新图像
+        #image2 = ImageTk.PhotoImage(imageFileMask)
+        #PreViewImage.configure(image=image2)
+        #PreViewImage.image = image2
+        #root.update()#刷新屏幕，投影新图像
     except Exception, e:
         ExceptionMessage(str(e))
 
