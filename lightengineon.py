@@ -68,33 +68,45 @@ class lightenginestate:
         self.projector_dis = 0
         self.lightengineSN = "NULL"
 
-        self.I2CSetCRC16OnOff = self.cyusb.I2CSetCRC16OnOff
-        self.I2CSetCRC16OnOff.argtypes = [c_int, c_int, c_bool]
-        self.I2CSetCRC16OnOff.restype = c_int
+        self.SPIPrint = self.cyusb.SPIPrint
+        self.SPIPrint.argtypes = [c_int, c_int, c_char_p, c_int]
+        self.SPIPrint.restype = c_int
+        
+        #self.I2CSetCRC16OnOff = self.cyusb.I2CSetCRC16OnOff
+        #self.I2CSetCRC16OnOff.argtypes = [c_int, c_int, c_bool]
+        #self.I2CSetCRC16OnOff.restype = c_int
 
-        self.I2CSetActiveBuffer = self.cyusb.I2CSetActiveBuffer
-        self.I2CSetActiveBuffer.argtypes = [c_int, c_int, c_bool]
-        self.I2CSetActiveBuffer.restype = c_int
+        #self.I2CSetActiveBuffer = self.cyusb.I2CSetActiveBuffer
+        #self.I2CSetActiveBuffer.argtypes = [c_int, c_int, c_bool]
+        #self.I2CSetActiveBuffer.restype = c_int
 
-        self.I2cSetInputSource = self.cyusb.I2cSetInputSource
-        self.I2cSetInputSource.argtypes = [c_int, c_int, c_int]
-        self.I2cSetInputSource.restype = c_int
+        #self.I2cSetInputSource = self.cyusb.I2cSetInputSource
+        #self.I2cSetInputSource.argtypes = [c_int, c_int, c_int]
+        #self.I2cSetInputSource.restype = c_int
 
-        self.I2CSetExternalPrintConfiguration = self.cyusb.I2CSetExternalPrintConfiguration
-        self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int, c_int]
-        self.I2CSetExternalPrintConfiguration.restype = c_int
+        #self.I2CSetExternalPrintConfiguration = self.cyusb.I2CSetExternalPrintConfiguration
+        #self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int, c_int]
+        #self.I2CSetExternalPrintConfiguration.restype = c_int
 
-        self.I2CSetParallelBuffer = self.cyusb.I2CSetParallelBuffer
-        self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int]
-        self.I2CSetExternalPrintConfiguration.restype = c_int
+        #self.I2CSetParallelBuffer = self.cyusb.I2CSetParallelBuffer
+        #self.I2CSetParallelBuffer.argtypes = [c_int, c_int, c_int]
+        #self.I2CSetParallelBuffer.restype = c_int
 
-        self.I2CSetExternalPrintControl = self.cyusb.I2CSetExternalPrintControl
-        self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int, c_int, c_int, c_int, c_int]
-        self.I2CSetExternalPrintConfiguration.restype = c_int
+        #self.I2CSetExternalPrintControl = self.cyusb.I2CSetExternalPrintControl
+        #self.I2CSetExternalPrintControl.argtypes = [c_int, c_int, c_int, c_int, c_int, c_int, c_int]
+        #self.I2CSetExternalPrintControl.restype = c_int
 
-        self.yo_spidatastream_write = self.cyusb.yo_spidatastream_write
-        self.Check_SPI_RDY_Busy = self.cyusb.Check_SPI_RDY_Busy
-        self.Check_SYS_RDY_Busy = self.cyusb.Check_SYS_RDY_Busy
+        #self.Check_SPI_RDY_Busy = self.cyusb.Check_SPI_RDY_Busy
+        #self.Check_SYS_RDY_Busy = self.cyusb.Check_SYS_RDY_Busy
+
+        #self.yo_spidatastream_write = self.cyusb.yo_spidatastream_write
+        #self.yo_spidatastream_write.argtypes = [c_char_p, ]
+        #self.yo_spidatastream_write.restype = c_int
+        
+
+        #self.SPIWriteData = self.cyusb.SPIWriteData
+        #self.SPIWriteData.argtypes = [c_int, c_char_p]
+        #self.SPIWriteData.restypes = c_int
 
     def InitLED(self):
         if self.Proj_On() < 0:
@@ -252,7 +264,7 @@ class lightenginestate:
             self.logger.error("Fail to set projector on.")
             return -1
         return status
-        
+
     def Proj_Off(self):
         status = self.SetProjectorOnOff(self.device0_num, GPIO_IF_NUM, self.projector_dis)
         if status != 0:
@@ -262,81 +274,97 @@ class lightenginestate:
         self.cyusb.freegl()
         return status
 
-    def SPIPrint(self, frames, imageFp):
-        ret = 0
-        flagbuf = False
+    def SPIPrint_py(self, frames, imageFile, layer_num):
+        self.SPIPrint(self.device0_num, frames, imageFile, layer_num)
+        return 0
 
-        #step1
-        ret = self.I2CSetCRC16OnOff(self.device0_num, I2C_IF_NUM, True)
-        self.logger.info("step1 I2CSetCRC16OnOff")
-        if ret != 0:
-            return False
+    
+ #   def SPIPrint(self, frames, imageFile):
+ #       ret = 0
+ #       flagbuf = False
 
-        #step2
-        ret = self.I2CSetActiveBuffer(self.device0_num, I2C_IF_NUM, flagbuf)
-        self.logger.info("step2 I2CSetActiveBuffer")
-        flagbuf = not flagbuf
-        if ret != 0:
-            return False
+ #       #step1
+ #       ret = self.I2CSetCRC16OnOff(self.device0_num, I2C_IF_NUM, True)
+ #       if ret != 0:
+ #           self.logger.info("step1 I2CSetCRC16OnOff fail")
+ #           return False
+ #       self.logger.info("step1 I2CSetCRC16OnOff")
 
-        #step3-1
-        ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0xFF)
-        self.logger.info("step3-1 I2cSetInputSource")
-        if ret != 0:
-            return False
+ #       #step2
+ #       ret = self.I2CSetActiveBuffer(self.device0_num, I2C_IF_NUM, flagbuf)
+ #       flagbuf = not flagbuf
+ #       if ret != 0:
+ #           self.logger.info("step2 I2CSetActiveBuffer fail")
+ #           return False
+ #       self.logger.info("step2 I2CSetActiveBuffer")
 
-        time.sleep(0.4)
+ #       #step3-1
+ #       ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0xFF)
+ #       if ret != 0:
+ #           self.logger.info("step3-1 I2cSetInputSource fail")
+ #           return False
+ #       self.logger.info("step3-1 I2cSetInputSource")
 
-        #step3-2
-        ret = self.I2CSetExternalPrintConfiguration(self.device0_num, I2C_IF_NUM,  0x00, 0x04)
-        self.logger.info("step3-2 I2CSetExternalPrintConfiguration")
-        if ret != 0:
-            return False
+ #       time.sleep(0.4)
 
-        #step4
-        ret = self.yo_spidatastream_write(imageFp)
-        self.logger.info("step4 yo_spidatastream_write")
-        if ret != 0:
-            return False
-        self.Check_SPI_RDY_Busy(self.device0_num, GPIO_IF_NUM)
+ #       #step3-2
+ #       ret = self.I2CSetExternalPrintConfiguration(self.device0_num, I2C_IF_NUM,  0x00, 0x04)
+ #       if ret != 0:
+ #           self.logger.info("step3-2 I2CSetExternalPrintConfiguration fail")
+ #           return False
+ #       self.logger.info("step3-2 I2CSetExternalPrintConfiguration")
 
-        #step5
-        ret = self.I2CSetActiveBuffer(self.device0_num, I2C_IF_NUM, flagbuf)
-        self.logger.info("step5 I2CSetActiveBuffer")
-        flagbuf = not flagbuf
-        if ret != 0:
-            return False
+ #       #step4
+ #       ret = self.yo_spidatastream_write(imageFile)
+ #       if ret != 0:
+ #           self.logger.info("step4 yo_spidatastream_write fail")
+ #           return False
+ #       self.logger.info("step4 yo_spidatastream_write")
+ #       self.Check_SPI_RDY_Busy(self.device0_num, GPIO_IF_NUM)
 
-        #step6
-        ret = self.I2CSetParallelBuffer(self.device0_num, I2C_IF_NUM, 0x01)
-        self.logger.info("step6 I2CSetParallelBuffer")
-        if ret != 0:
-            return False
+ #       #step5
+ #       ret = self.I2CSetActiveBuffer(self.device0_num, I2C_IF_NUM, flagbuf)
+ #       flagbuf = not flagbuf
+ #       if ret != 0:
+ #           self.logger.info("step5 I2CSetActiveBuffer fail")
+ #           return False
+ #       self.logger.info("step5 I2CSetActiveBuffer")
 
-        #step7
-        ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0x06)
-        self.logger.info("step7 I2cSetInputSource")
-        if ret != 0:
-            return False
+ #       #step6
+ #       ret = self.I2CSetParallelBuffer(self.device0_num, I2C_IF_NUM, 0x01)
+ #       if ret != 0:
+ #           self.logger.info("step6 I2CSetParallelBuffer fail")
+ #           return False
+ #       self.logger.info("step6 I2CSetParallelBuffer")
 
-        self.Check_SYS_RDY_Busy(self.device0_num, GPIO_IF_NUM)
+ #       #step7
+ #       ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0x06)
+ #       if ret != 0:
+ #           self.logger.info("step7 I2cSetInputSource fail")
+ #           return False
+ #       self.logger.info("step7 I2cSetInputSource")
 
-        #if (frames / 60.0) > 0.9: #0.9 is spi image data transmission time, it's changed depand on SPI speed setting             
+ #       self.Check_SYS_RDY_Busy(self.device0_num, GPIO_IF_NUM)
 
-        #step8
-        framesLow = frames & 0xFF
-        framesHigh = (frames >> 8) & 0xFF
-        ret = self.I2CSetExternalPrintControl(self.device0_num, I2C_IF_NUM, 0x00, 0x05, 0x00, framesLow, framesHigh)
-        self.logger.info("step8 I2CSetExternalPrintControl")
-        if ret != 0:
-            return False
+ #       #if (frames / 60.0) > 0.9: #0.9 is spi image data transmission time, it's changed depand on SPI speed setting             
 
-        ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0xFF)
-        self.logger.info("step9 I2cSetInputSource")
-        if ret != 0:
-            return False
+ #       #step8
+ #       framesLow = frames & 0xFF
+ #       framesHigh = (frames >> 8) & 0xFF
+ #       ret = self.I2CSetExternalPrintControl(self.device0_num, I2C_IF_NUM, 0x00, 0x05, 0x00, framesLow, framesHigh)
+ #       if ret != 0:
+ #           self.logger.info("step8 I2CSetExternalPrintControl fail")
+ #           return False
+ #       self.logger.info("step8 I2CSetExternalPrintControl")
 
-	return True
+ #       ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, 0xFF)
+ #       if ret != 0:
+ #           self.logger.info("step9 I2cSetInputSource fail")
+ #           return False
+ #       self.logger.info("step9 I2cSetInputSource")
+
+	#return True
 
     def GetVersion(self):
-        return __VERSION__       
+        return __VERSION__
+

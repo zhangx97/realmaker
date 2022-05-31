@@ -376,11 +376,11 @@ def build_a_layer(layer_num):#新建图层
     #printLightTemperature = light_engine.ReadLEDTemp()
 
     try:
-        path = file_path + "/" + "images/{0:0>4}.png"
+        path = file_path + "/" + "images/{0:0>4}.bmp"
         imageFile = path.format(layer_num)
-        imageFileMask = LayerMask(imageFile)     #layer mask image
-        CuringTimeParam = float(LayerResinCuringTime * 60)
-        light_engine.SPIPrint(CuringTimeParam, imageFileMask)
+        #imageFileMask = LayerMask(imageFile)     #layer mask image
+        CuringTimeParam = LayerResinCuringTime * 60
+        light_engine.SPIPrint_py(CuringTimeParam, imageFile, layer_num)
         #image1 = Image.open(imageFileMask)
         #image2 = ImageTk.PhotoImage(imageFileMask)
         #PreViewImage.configure(image=image2)
@@ -433,9 +433,9 @@ def ImageProjection(img_name):#图像投影
 
     try:
         imageFile = file_path + "/projection/" + img_name
-        imageFileMask = LayerMask(imageFile)     #layer mask image
-        ret = light_engine.SPIPrint(3600,imageFileMask)
-        if not ret:
+        #imageFileMask = LayerMask(imageFile)     #layer mask image
+        ret = light_engine.SPIPrint_py(1800, imageFile, 1)
+        if ret is not 0:
             logger.info("ImageProjection SPIPrint False")
             return False
         #image1 = Image.open(imageFileMask)

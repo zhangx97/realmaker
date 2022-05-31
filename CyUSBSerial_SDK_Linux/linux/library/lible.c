@@ -12,6 +12,8 @@
 #include <ctype.h>
 #include "CyUSBSerial.h"
 
+#include "yo_spi.h"
+
 #define CY_MAX_DEVICES 30
 #define CY_MAX_INTERFACES 4
 #define I2C_IF_NUM 0
@@ -29,6 +31,19 @@ typedef struct _CY_DEVICE_STRUCT {
 
 CY_DEVICE_STRUCT *glDevice;
 
+struct data_stream {
+	unsigned commandop : 8;
+	unsigned col_start_index : 5;
+	unsigned col_end_index : 5;
+	unsigned row_start_index : 11;
+	unsigned rdummy : 7;             //all 0
+	unsigned datacheck : 4;          //all 1
+	unsigned dummy : 8;              // 1000 0000
+};
+
+static spi* spi_dev0;
+static int SPIWriteData(int data_len, char* data);
+
 int DEVICE0_NUM;
 int DEVICE1_NUM;
 int i2cDeviceIndex[CY_MAX_DEVICES][CY_MAX_INTERFACES];
@@ -41,6 +56,8 @@ unsigned short pageAddress = -1;
 short readWriteLength = -1;
 bool deviceAddedRemoved = false;
 static int isNewLED = 0;
+
+
 
 bool isCypressDevice (int deviceNum) {
     CY_HANDLE handle;
@@ -187,12 +204,17 @@ enum CommandId {
 	READ_LED_CURRENT = 0x55,
 	READ_TEMPERATRUE = 0xd6,
 	WRITE_TEST_PATTERNS = 0x0b,
-	WRITE_INPUT_SOURCE = 0x05,
 	WRITE_PROJCETOR_FLIP = 0x14,
 	READ_PROJCETOR_FLIP = 0x15,
 	READ_FB_VER = 0xd9,
 	WRITE_PWR = 0xa0,
-	READ_LIGHT = 0xac
+	READ_LIGHT = 0xac,
+	WRITE_FPGA_CONTROL = 0xCA,
+	WRITE_ACTIVE_BUFFER = 0xC5,
+	WRITE_INPUT_SOURCE = 0x05,
+	WRITE_EXTERNAL_PRINT_CONFIGURATION = 0xA8,
+	WRITE_PARALLEL_VIDEO = 0xC3,
+	WRITE_EXTERNAL_PRINT_CONTROL = 0xC1,
 };
 
 #define cSlaveAddress7bit 0x1B
@@ -203,10 +225,11 @@ enum CommandId {
 #define aReadSlaveAddress "73"
 #define aWriteSlaveAddress "72"
 
-static UINT8 aSlaveAddress7bit = aSlaveAddress7bitOLD;
+static UINT8 aSlaveAddress7bit = aSlaveAddress7bitNEW;
 static UINT8 lightSensorPowerOnCommand = 0xA0;
 static UINT8 lightSensorPowerOnData = 0x03;
-static UINT8 lightSensorReadSensorValueCommand = 0xAC;
+//static UINT8 lightSensorReadSensorValueCommand = 0xAC;
+static UINT8 lightSensorReadSensorValueCommand = 0xB4;
 static UINT8 lightSensorPowerOffData = 0x00;
 
 CY_RETURN_STATUS FlashBlockRead(int deviceNumber, int interfaceNum, int address, int len, char *buf);
@@ -479,6 +502,36 @@ CY_RETURN_STATUS GpioWrite(int deviceNumber, int interfaceNum, UINT8 gpioNumber,
 
 	D(printf("Completed GPIO write !\n"));
 	CyClose (cyHandle);
+	return CY_SUCCESS;
+}
+
+CY_RETURN_STATUS GpioRead(int deviceNumber, int interfaceNum, UINT8 gpioNumber, UINT8* value)
+{
+	CY_RETURN_STATUS rStatus;
+
+	D(printf("Opening GPIO device with device number %d...\n", deviceNumber));
+
+	//Open the device at deviceNumber
+	rStatus = CyOpen(deviceNumber, interfaceNum, &cyHandle);
+
+	if (rStatus != CY_SUCCESS) {
+		printf("GPIO Device open failed. Error NO:<%d>\n", rStatus);
+		return rStatus;
+	}
+
+
+	// I2C Read/Write operations
+	D(printf("Performing GPIO Read operation...\n"));
+
+	rStatus = CyGetGpioValue(cyHandle, gpioNumber, value);
+	if (rStatus != CY_SUCCESS) {
+		printf("CyGetGpioValue Failed. Error NO:<%d>\n", rStatus);
+		CyClose(cyHandle);
+		return rStatus;
+	}
+
+	D(printf("Completed GPIO read !\n"));
+	CyClose(cyHandle);
 	return CY_SUCCESS;
 }
 
@@ -1332,4 +1385,454 @@ CY_RETURN_STATUS FlashBlockReadMask(char *str,char *lightengineSN)
 void freegl()
 {
     free (glDevice);
+}
+
+CY_RETURN_STATUS I2CSetCRC16OnOff(int deviceNumber, int interfaceNum, bool enable)
+{
+	CY_RETURN_STATUS rStatus;
+
+	int cWRITESIZE = 2;
+	UINT8* sendBuf;
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_FPGA_CONTROL;  //CAh
+	if (enable)
+	{
+		sendBuf[1] = 0x04;
+	}
+	else
+	{
+		sendBuf[1] = 0x00;
+	}
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2CSetCRC16OnOff: I2CWrite Fail ##");
+		free(sendBuf);
+		return rStatus;
+	}
+	puts("## I2CSetCRC16OnOff: I2CWrite succeed ##");
+	free(sendBuf);
+	return rStatus;
+}
+
+CY_RETURN_STATUS I2CSetActiveBuffer(int deviceNumber, int interfaceNum, bool activebuf)
+{
+	CY_RETURN_STATUS rStatus;
+
+	int cWRITESIZE = 2;
+	UINT8* sendBuf;
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_ACTIVE_BUFFER;   //C5h
+	if (activebuf)
+	{
+		sendBuf[1] = 0x01;
+	}
+	else
+	{
+		sendBuf[1] = 0x00;
+	}
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2CSetActiveBuffer: I2CWrite Fail ##");
+		free(sendBuf);
+		return rStatus;
+	}
+	puts("## I2CSetActiveBuffer: I2CWrite succeed ##");
+	free(sendBuf);
+	return rStatus;
+}
+
+CY_RETURN_STATUS I2cSetInputSource(int deviceNumber, int interfaceNum, int select)
+{
+	CY_RETURN_STATUS rStatus;
+	int cWRITESIZE = 2;
+	UINT8* sendBuf;
+
+
+	/*if( !WaitForI2cIdle(dN) )
+		return -1;*/
+
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_INPUT_SOURCE;
+	sendBuf[1] = select;
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2cSetInputSource: I2CWrite Fail ##");
+		free(sendBuf);
+		return rStatus;
+	}
+	puts("## I2cSetInputSource: I2CWrite succeed ##");
+	free(sendBuf);
+	return rStatus;
+}
+
+CY_RETURN_STATUS I2CSetExternalPrintConfiguration(int deviceNumber, int interfaceNum, int para1, int para2)
+{
+	CY_RETURN_STATUS rStatus;
+
+	int cWRITESIZE = 3;
+	UINT8* sendBuf;
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_EXTERNAL_PRINT_CONFIGURATION;   //A8h
+	sendBuf[1] = para1;
+	sendBuf[2] = para2;
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2CSetExternalPrintConfiguration: I2CWrite Fail ##");
+		return rStatus;
+		free(sendBuf);
+	}
+	puts("## I2CSetExternalPrintConfiguration: I2CWrite succeed ##");
+	free(sendBuf);
+	return rStatus;
+}
+
+CY_RETURN_STATUS I2CSetParallelBuffer(int deviceNumber, int interfaceNum, int para)
+{
+	CY_RETURN_STATUS rStatus;
+
+	int cWRITESIZE = 2;
+	UINT8* sendBuf;
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_PARALLEL_VIDEO;   //C3h
+	sendBuf[1] = para;
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2CSetParallelBuffer: I2CWrite Fail ##");
+		return rStatus;
+	}
+	puts("## I2CSetParallelBuffer: I2CWrite succeed ##");
+	return rStatus;
+}
+
+CY_RETURN_STATUS I2CSetExternalPrintControl(int deviceNumber, int interfaceNum, int para1, int para2, int para3, int para4, int para5)
+{
+	CY_RETURN_STATUS rStatus;
+
+	int cWRITESIZE = 6;
+	UINT8* sendBuf;
+
+	sendBuf = (UINT8*)malloc(cWRITESIZE);
+
+	sendBuf[0] = WRITE_EXTERNAL_PRINT_CONTROL;   //C1h
+	sendBuf[1] = para1;
+	sendBuf[2] = para2;
+	sendBuf[3] = para3;
+	sendBuf[4] = para4;
+	sendBuf[5] = para5;
+
+	rStatus = I2CWrite(deviceNumber, interfaceNum, cSlaveAddress7bit, cWRITESIZE, sendBuf);
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## I2CSetExternalPrintControl: I2CWrite Fail ##");
+		return rStatus;
+	}
+	puts("## I2CSetExternalPrintControl: I2CWrite succeed ##");
+	return rStatus;
+}
+
+CY_RETURN_STATUS GpioGetSpirdyBusy(int deviceNumber, int interfaceNum, bool* isBusy)
+{
+	CY_RETURN_STATUS rStatus;
+	UINT8 SPI_RDY = 5;
+	rStatus = GpioRead(deviceNumber, interfaceNum, SPI_RDY, isBusy);  //GPIO5
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## GpioGetSpirdyBusy: GpioRead Fail ##");
+		return rStatus;
+	}
+	puts("## GpioGetSpirdyBusy: GpioRead succeed ##");
+	*isBusy = !*isBusy;
+	return rStatus;
+}
+
+void Check_SPI_RDY_Busy(int deviceNumber, int interfaceNum)
+{
+	bool isBusy = true;
+	while (true)
+	{
+		GpioGetSpirdyBusy(deviceNumber, interfaceNum, &isBusy);
+		if (isBusy == false)
+		{
+			puts("SPI_RDY Get Ready ! ");
+			break;
+		}
+	}
+}
+
+CY_RETURN_STATUS GpioGetSysrdyBusy(int deviceNumber, int interfaceNum, bool* isBusy)
+{
+	CY_RETURN_STATUS rStatus;
+	UINT8 SYS_RDY = 6;
+	
+	rStatus = GpioRead(deviceNumber, interfaceNum, SYS_RDY, isBusy);  //GPIO6
+	if (rStatus != CY_SUCCESS)
+	{
+		puts("## GpioGetSysrdyBusy: GpioRead Fail ##");
+		return rStatus;
+	}
+	puts("## GpioGetSysrdyBusy: GpioRead succeed ##");
+	*isBusy = !*isBusy;
+	return rStatus;
+}
+
+void Check_SYS_RDY_Busy(int deviceNumber, int interfaceNum)
+{
+	bool isBusy = true;
+	while (true)
+	{
+		GpioGetSysrdyBusy(deviceNumber, interfaceNum, &isBusy);
+		if (isBusy == false)
+		{
+			puts("SYS_RDY Get Ready ! ");
+			break;
+		}
+	}
+}
+
+
+
+int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
+{
+	fflush(stdout);
+	setvbuf(stdout, NULL, _IONBF, 0);
+	freopen("/home/pi/log/my.log", "a", stdout); //打印到my.log文件
+
+	int ret = 0;
+	bool flagbuf = false;
+
+	char framesLow = 0;
+	char framesHigh = 0;
+
+	spi_dev0 = yo_spi_init(0, 0);
+	spi* spi_dev;
+	spi_dev = spi_dev0;
+	yo_spi_set_mode(spi_dev, 0);
+	yo_spi_set_bits_per_word(spi_dev, 8);
+	yo_spi_set_speed(spi_dev, 48000000); //48MHz
+
+	///step 1
+	ret = I2CSetCRC16OnOff(dN, I2C_IF_NUM, true);
+	if (ret != 0)
+		return -1;
+
+	///step 2
+	if ((layer_num % 2) == 0)
+		flagbuf = false;
+	else
+		flagbuf = true;
+	ret = I2CSetActiveBuffer(dN, I2C_IF_NUM, flagbuf);  //set active buffer 0(Odd Print Layer)
+	flagbuf = !flagbuf;
+	if (ret != 0)
+		return -1;
+
+	usleep(1000);
+	///step 3-1
+	ret = I2cSetInputSource(dN, I2C_IF_NUM, 0xFF);  //set standby mode
+	if (ret != 0)
+		return -1;
+
+	usleep(500000);  //500ms
+///step 3-2
+	ret = I2CSetExternalPrintConfiguration(dN, I2C_IF_NUM, 0x00, 0x04);  //set LED3 enable
+	if (ret != 0)
+		return -1;
+
+	usleep(5000);  //5ms
+///step 4
+	//++icycle;
+	ret = yo_spidatastream_write(dN, imageFile);  //SPI data stream transmission, send the data and waiting for the SPI_RDY pull high
+	if (ret != 0)
+		return -1;
+
+	//if (icycle > 3) icycle = 0;
+
+	Check_SPI_RDY_Busy(dN, GPIO_IF_NUM);   //waiting for the SPI_RDY get ready(high)
+
+///step 5
+	ret = I2CSetActiveBuffer(dN, I2C_IF_NUM, flagbuf);   //change active buffer to another buffer(Even print layer)
+	if (ret != 0)
+		return -1;
+
+	usleep(5000);  //5ms
+///step 6
+	ret = I2CSetParallelBuffer(dN, I2C_IF_NUM, 0x01);  //read and send buffer
+	if (ret != 0)
+		return -1;
+
+	usleep(5000);  //5ms
+///step 7
+	ret = I2cSetInputSource(dN, I2C_IF_NUM, 0x06);  //set External Print mode, and waiting for the SYS_RDY pull high
+	if (ret != 0)
+		return -1;
+
+	usleep(5000);  //5ms
+	Check_SYS_RDY_Busy(dN, GPIO_IF_NUM);  //waiting for the SYS_RDY get ready(high)
+
+	framesLow = (char)(frames & 0xff);
+	framesHigh = (char)((frames >> 8) & 0xff);
+
+	puts(" ");
+
+	printf("The curing time is  %.2f s.(%d/60 s)\n ", frames / 60.0, frames);
+
+	ret = I2CSetExternalPrintControl(dN, I2C_IF_NUM, 0x00, 0x05, 0x00, framesLow, framesHigh);  //set External Print Layer Control and start print
+	if (ret != 0)
+		return -1;
+
+	usleep((long)((frames / 60.0) * 1000000.0));
+	ret = I2cSetInputSource(dN, I2C_IF_NUM, 0xFF);  //set standby mode
+	if (ret != 0)
+		return -1;
+	return 0;
+}
+
+int yo_spidatastream_write(int dN, char* imageFile)
+{
+	//1440P 2560x1440=3687478, bmp file include header(1078bytes) and image data(3686400).
+	int sdata_size;
+	unsigned char* pStream_data;
+	FILE* fp;
+
+	fp = fopen(imageFile, "rb");
+
+	if (fp == NULL) {
+		return -1;
+	}
+	else {   //write data stream to fpga
+		sdata_size = 3687478; //(int *)sdata;
+		pStream_data = (unsigned char*)malloc((unsigned long)sdata_size);
+		if (pStream_data == NULL) {
+			fclose(fp);
+			free(pStream_data);
+			return -1;
+		}
+		else {
+			fread(pStream_data, 1, (unsigned long)sdata_size, fp);
+
+			if ((SPIWriteData(sdata_size, (char*)pStream_data)) != 0) {
+				puts("SPIWriteData fail");
+				free(pStream_data);
+				return 1;
+			}
+			fclose(fp);
+		}
+	}
+	free(pStream_data);
+	return 0;
+}
+
+static int SPIWriteData(int data_len, char* data)
+{
+	int buffer_size = 1600; //1600
+	int rStatus;
+	unsigned char wbuffer[buffer_size + 14];
+	int i;
+	int buffer_tmp = 0;
+	int bmpoffset = 1078; //bmp file header 1078; from 0x436
+	struct data_stream ds;
+
+	spi* spi_dev;
+	spi_dev = spi_dev0;
+
+	ds.commandop = 0x04;
+	ds.col_start_index = 0;  //bit 12~8 : 00000
+	ds.col_end_index = 19;    //bit 17~13 : 10011
+	ds.row_start_index = 0; //bit 28~18 ;
+	ds.rdummy = 0b0000000;//bit 35~29 ;
+	ds.datacheck = 0b1111; //bit 39~36
+
+	ds.dummy = 0x00;
+
+	wbuffer[0] = ds.commandop;
+	wbuffer[1] = (ds.col_end_index << 5) | (ds.col_start_index); // 3 + 5
+	wbuffer[2] = (ds.row_start_index << 2) | (ds.col_end_index >> 3); // 6 + 2
+	wbuffer[3] = ((ds.row_start_index >> 3) & 0xf1) | ((ds.rdummy) & 0x07); // 5 + 3
+	wbuffer[4] = (ds.datacheck << 4) | (ds.rdummy >> 3); // 4 + 4
+	//wbuffer[1] = 0x60;    //wbuffer[2] = 0x02;    //wbuffer[3] = 0x00;    //wbuffer[4] = 0xF1;
+
+	wbuffer[5] = ds.dummy;
+
+	wbuffer[6] = (data_len - bmpoffset) & 0xff;     // little endian --> low first
+	wbuffer[7] = (data_len - bmpoffset) >> 8 & 0xff;
+	wbuffer[8] = (data_len - bmpoffset) >> 16 & 0xff;
+	wbuffer[9] = (data_len - bmpoffset) >> 24 & 0xff;
+
+	for (buffer_tmp = 0; buffer_tmp < (data_len - bmpoffset); buffer_tmp += buffer_size)
+	{
+		if (buffer_tmp == 0)
+		{
+			memcpy(wbuffer + 10, data + bmpoffset, buffer_size);
+
+			if (buffer_size < (data_len - bmpoffset))
+			{
+				rStatus = yo_spi_write(spi_dev, wbuffer, (buffer_size + 10));
+				if (rStatus != 0) {
+					puts("Error in doing SPI data program!");
+					return rStatus;
+				}
+			}
+			else
+			{
+				wbuffer[buffer_size + 10] = 0x12; //crc16[0];
+				wbuffer[buffer_size + 11] = 0x34; //crc16[1];
+				wbuffer[buffer_size + 12] = 0x00; //dummy byte
+				wbuffer[buffer_size + 13] = 0x00; //dummy byte
+
+				rStatus = yo_spi_write(spi_dev, wbuffer, (buffer_size + 14));
+				if (rStatus != 0) {
+					puts("Error in doing SPI data program!");
+					return rStatus;
+				}
+			}
+		}
+		else if (buffer_tmp < (data_len - bmpoffset - buffer_size))
+		{
+			memcpy(wbuffer + 6, data + bmpoffset + buffer_tmp, buffer_size);
+
+			rStatus = yo_spi_write(spi_dev, wbuffer, (buffer_size + 6));
+			if (rStatus != 0) {
+				puts("Error in doing SPI data program!");
+				return rStatus;
+			}
+
+		}
+		else //when last buffer_size
+		{
+			buffer_size = data_len - bmpoffset - buffer_tmp;
+			memcpy(wbuffer + 6, data + bmpoffset + buffer_tmp, buffer_size);
+
+			wbuffer[buffer_size + 6] = 0x12; //crc16[0];
+			wbuffer[buffer_size + 7] = 0x34; //crc16[1];
+			wbuffer[buffer_size + 8] = 0x00; //dummy byte
+			wbuffer[buffer_size + 9] = 0x00; //dummy byte
+
+			rStatus = yo_spi_write(spi_dev, wbuffer, (buffer_size + 10));
+			if (rStatus != 0) {
+				puts("Error in doing SPI data program!");
+				return rStatus;
+			}
+		}
+	}
+
+	return 0;
 }
