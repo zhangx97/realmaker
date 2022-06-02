@@ -186,9 +186,9 @@ class lightenginestate:
             return 1
 
     def AutoSetLightValue(self, value, offset):
-        time.sleep(1)
-        self.LED_On()
-        time.sleep(1)
+        #time.sleep(1)
+        #self.LED_On()
+        #time.sleep(1)
         self.WriteLEDCurrentValue(100)
         setNum = 0
         while setNum < 10:
@@ -275,7 +275,10 @@ class lightenginestate:
         return status
 
     def SPIPrint_py(self, frames, imageFile, layer_num):
+        self.logger.info("SPIPrint start")
         self.SPIPrint(self.device0_num, frames, imageFile, layer_num)
+        endtime = time.localtime(time.time())
+        self.logger.info("SPIPrint end")
         return 0
 
     

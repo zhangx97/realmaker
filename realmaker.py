@@ -77,39 +77,41 @@ def close_serial(serialPort):
         logger.error('Fail to close serialport', exc_info = True)
 
 #raspberry pi communicate with arduino by serial port ##################
-def send_a_cmd(ser, cmd):
+def send_a_cmd(ser, cmd, writeLog = False):
     global PrintState
     global states, logger
     global pluseCount,ifPluse
 
     print "send_a_cmd", cmd
-    #logger.info("send_a_cmd:"+cmd)
 
     try:
         send_cmd = cmd+'\n'
         ser.write(send_cmd)
-        #logger.info("[arduino]write:"+send_cmd)
+        if writeLog:
+            logger.info("[write to arduino]:"+send_cmd)
         DEVback = ser.readline()
 
         cmdback = DEVback
-        #logger.info(cmdback)
+        if writeLog:
+            logger.info("[recive from arduino]:"+cmdback)
         if cmdback[0:-2] != cmd:
-            #logger.info("[arduino]warn: "+cmdback[0:-2])
             print "err: "+cmdback[0:-2],cmd
             if cmdback[0:-2] == "Start":
-                ser.readline()
-                ser.readline()
+                if writeLog:
+                    logger.info("[recive != send]:cmdback == start,following is the cleaning process:")
+                    logger.info("[cleaning]:"+ser.readline())
+                    logger.info("[cleaning]:"+ser.readline())
             if cmdback[0:6] == 'Press1':
                 pluseCountReceived = int(cmdback.split()[-1])
-                logger.info("isnocmd pluseCountReceived :"+str(pluseCountReceived))
+                logger.info("[recive != send]:pluseCountReceived :"+str(pluseCountReceived))
                 if pluseCountReceived > 0:
-                    logger.info("isnotcmd"+str(cmdback[0:-2]))
+                    logger.info("[recive != send]:get press,stop print...")
                     #ifPluse = True
                     PrintState = states[5]
                 else:
-                    logger.info("Isnotcmd And No G28 But Under Pressure")
-                    ser.readline()
-                    ser.readline()
+                    logger.info("[recive != send]:get press before G28cmd send,following is the cleaning process:")
+                    logger.info("[cleaning]:"+ser.readline())
+                    logger.info("[cleaning]:"+ser.readline())
                     if pluseCount > 0:
                         PrintState = states[5]
         else:
@@ -119,28 +121,30 @@ def send_a_cmd(ser, cmd):
                 if DEVback != '':
                     cmdback = DEVback
                     ack = cmdback[0:2]
+                    if writeLog:
+                        logger.info("[recive = send]:twice recive:"+ack)
                     print ack
-                    #logger.info("[arduino]recive:"+cmdback)
                     if ack == 'ER':
-                        ser.readline()
+                        if writeLog:
+                            logger.info("[recive = send]:recive error "+ser.readline())
                     if ack == 'pl':
                         strList = cmdback.split(":")
-                        logger.info("pluse")
+                        logger.info("[recive = send]:pluse adjust")
                         pluseCount = str(int(strList[1])-1000)
                         WriteParam("PluseCount",pluseCount)
                         continue
                     if ack == 'Pr':                        
                         pluseCountReceived = int(cmdback.split()[-1])
-                        logger.info("pluseCountReceived :"+str(pluseCountReceived))
+                        logger.info("[recive = send]:pluseCountReceived "+str(pluseCountReceived))
                         if pluseCountReceived > 0:
-                            logger.info("iscmd "+str(cmdback[0:-2]))
+                            logger.info("[recive = send]:get press,stop print...")
                             #ifPluse = True
                             PrintState = states[5]
-                            send_a_cmd(ser, "M18")
+                            send_a_cmd(ser, "M18",True)
                             continue
                         else:
-                            logger.info("No G28 But Under Pressure")
-                            ser.readline()
+                            logger.info("[recive = send]:No G28 But Under Pressure,following is the cleaning process:")
+                            logger.info("[cleaning]:"+ser.readline())
                             continue
                     break
                 else:
@@ -294,18 +298,18 @@ def ControlPrint():#控制打印
         
         #begin print ####
         if not TFSer is None:
-            send_a_cmd(TFSer, 'M100')
+            send_a_cmd(TFSer, 'M100',True)
 
         logger.info("pluseCount to arduino "+str(pluseCount))
         #if(hasPluseFunction == 1):
-        send_a_cmd(DevSer,"PRESS_INIT "+ str(pluseCount))
+        send_a_cmd(DevSer,"PRESS_INIT "+ str(pluseCount),True)
         #else:
         #    send_a_cmd(DevSer,"PRESS_INIT "+ str(0))
 
         for i in range(len(start_cmds)):
             #print PrintState
 
-            send_a_cmd(DevSer, start_cmds[i])
+            send_a_cmd(DevSer, start_cmds[i],True)
             if PrintState == states[2]:
                 ControlPause()
             if (PrintState == states[1]):
@@ -332,7 +336,7 @@ def ControlPrint():#控制打印
             if PrintState == states[1]:
                 ControlStop()
                 return
-                
+        
         ControlStop()      
     except Exception, e:
         PrintStop = True
@@ -344,9 +348,10 @@ def build_a_layer(layer_num):#新建图层
     global file_path, light_engine, ModelCount, LightSensor, PrintException
     global curBrightness, curCurrent, curLEDTemp, states, PrintState,DevSer,SpecialExposeLayer,offset
 
+    logger.info("The platform starts to move")
     if layer_num >= BottomCount:
         if layer_num >= int(SpecialExposeLayer[0]) and layer_num <= int(SpecialExposeLayer[1]):
-            LayerResinCuringTime  = int(SpecialExposeLayer[2])
+            LayerResinCuringTime  = float(SpecialExposeLayer[2])
         else:
             LayerResinCuringTime = ResinCuringTime
         TimeMovelayer_up = time.time()
@@ -363,24 +368,26 @@ def build_a_layer(layer_num):#新建图层
         TimeMovelayer_down = time.time()
         TimeMovelayer = TimeMovelayer_down - TimeMovelayer_up
         print "TimeMovelayer="+str(TimeMovelayer)
-
-    if light_engine.ReadLEDState() <= 0: #如果光机状态读取异常，结束打印，上报异常
-        logger.info('Read LED State Error when printing')
-        PrintException = "Read LED State Error"
-        logger.info('light engine error when printing')
-        PrintState = states[1]
-        return
+    logger.info("Platform stops moving. layer_num : "+str(layer_num))
+    #if light_engine.ReadLEDState() <= 0: #如果光机状态读取异常，结束打印，上报异常
+    #    logger.info('Read LED State Error when printing')
+    #    PrintException = "Read LED State Error"
+    #    logger.info('light engine error when printing')
+    #    PrintState = states[1]
+    #    return
     
     #printLayerLight = light_engine.ReadLEDSensorValue()
     #printLayerCurrent = light_engine.ReadLEDCurrentValue()
     #printLightTemperature = light_engine.ReadLEDTemp()
 
+
     try:
         path = file_path + "/" + "images/{0:0>4}.bmp"
         imageFile = path.format(layer_num)
         #imageFileMask = LayerMask(imageFile)     #layer mask image
-        CuringTimeParam = LayerResinCuringTime * 60
+        CuringTimeParam = int(LayerResinCuringTime * 60)
         light_engine.SPIPrint_py(CuringTimeParam, imageFile, layer_num)
+        time.sleep(1.5)
         #image1 = Image.open(imageFileMask)
         #image2 = ImageTk.PhotoImage(imageFileMask)
         #PreViewImage.configure(image=image2)
@@ -404,10 +411,13 @@ def build_a_layer(layer_num):#新建图层
     #print "Real " + str(CuringTimePass)+" senconds Curing" + "count: " + str(layer_num)
 
     finish_count = finish_count + 1
-    PrintBlackScreen()
-
+    #PrintBlackScreen()
     try:
         if layer_num == int((ModelCount + BottomCount) * 0.1 * SensorValIndex):
+            logger.info("3 print start")
+            dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (180, "/home/pi/python_project/projection/blackscreen.bmp", 0))
+            dark_image.start()
+            time.sleep(4)
             SensorValIndex += 1
             curBrightness = light_engine.ReadLEDSensorValue()
             time.sleep(0.5)
@@ -416,6 +426,8 @@ def build_a_layer(layer_num):#新建图层
             curLEDTemp = light_engine.ReadLEDTemp()
             print curBrightness, curCurrent, curLEDTemp
             logger.info('light_brightness:'+str(curBrightness)+'  light_current:'+str(curCurrent)+'  light_temp:'+str(curLEDTemp))
+            logger.info("3 print end")
+            time.sleep(4)
             #lightval = light_engine.ReadLEDSensorValue()
             #print "====> ", layer_num, lightval
             #if  lightval < (LightSensor * 0.8):
@@ -434,7 +446,7 @@ def ImageProjection(img_name):#图像投影
     try:
         imageFile = file_path + "/projection/" + img_name
         #imageFileMask = LayerMask(imageFile)     #layer mask image
-        ret = light_engine.SPIPrint_py(1800, imageFile, 1)
+        ret = light_engine.SPIPrint_py(1800, imageFile, 0)
         if ret is not 0:
             logger.info("ImageProjection SPIPrint False")
             return False
@@ -514,7 +526,7 @@ def ControlStop():#停止
 
     PrintState = 'NULL'
     CurState = 'NULL'
-    PrintBlackScreen()
+    #PrintBlackScreen()
     close_serial(DevSer)
     #RaspiCamOn(False)
     if PrintException == 'NULL':
@@ -1155,6 +1167,24 @@ def TcpMessageProcess(Msg, cs):
     elif cmd == 'getBottomTime':
         cmdType = Msg.split()[1]
         cs.send("bottomTime" + ' ' + ReadPCConfigIni(cmdType) + '!' )
+    elif cmd == 'proj_on':
+        light_engine.Proj_On()
+    elif cmd == 'proj_off':
+        light_engine.Proj_Off()
+    elif cmd == 'testprint':
+        light_engine.Proj_On()
+        time.sleep(2)
+        dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (1800, "/home/pi/python_project/projection/test.bmp", 0))
+        dark_image.start()
+        logger.info("dark_image test")
+        time.sleep(4)
+        logger.info("dark_image test four")
+        dac = light_engine.ReadLEDCurrentValue()
+        sensor = light_engine.ReadLEDSensorValue()
+        ledtemp = light_engine.ReadLEDTemp()
+        logger.info("test")
+        logger.info("dac: "+str(dac)+" sensor: "+str(sensor)+" ledtemp: "+str(ledtemp))
+
     else:
         cs.send("Unknown command!")
 
@@ -1265,10 +1295,15 @@ def LightengineLedState(led_state):
 def LightengineProjState(proj_state):
     global light_engine
 
-    PrintBlackScreen()
+    #PrintBlackScreen()
 
     if proj_state:
-        light_engine.Proj_On()
+        for i in range(20):
+            status = light_engine.Proj_On()
+            if status == 0:
+                logger.info("Successfully set projector on.")
+                time.sleep(2)
+                break
         if LightengineState(True) < 0:
             ExceptionMessage("LED ERR")
             return -1          
@@ -1313,19 +1348,29 @@ def SetLEDOnIndex(set_num):
     
 def LightengineState(state):
     global light_engine, offset
-    
+
+    logger.info("LightengineState start")
     if state :
-        status = SetLEDOnIndex(20)
+        dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (600, "/home/pi/python_project/projection/blackscreen.bmp", 0))
+        dark_image.start()
+        #logger.info("dark_image 1337")
+        time.sleep(4)
+        status = 0
         if status == 0:
+            #logger.info("dark_image 1341")
             status = light_engine.AutoSetLightValue(LightSensor,offset)
+            #logger.info("dark_image 1343")
             if status < 0:
                 ExceptionMessage("RMK-LightengineState: Set Light Value Error.")
                 return -1
+            logger.info("LightengineState end")
+            time.sleep(2)
         else:
             ExceptionMessage("RMK-LightengineState: True On LED Error.")
             return -1         
     else:
-        status = light_engine.LED_Off()
+        #status = light_engine.LED_Off()
+        status = light_engine.Proj_Off()
         if status < 0:
             ExceptionMessage("RMK-LightengineState: Trun Off LED Error.")
             return -1
@@ -1534,7 +1579,7 @@ def PluseCalibrate():
         logger.info("serial is exist: "+DevSer.name)
         logger.info("start calibrate pluse")
         send_a_cmd(cmdToMachine,"G15")
-        #send_a_cmd(cmdToMachine,"PRESS_INIT 1300000000")
+        send_a_cmd(cmdToMachine,"PRESS_INIT 1300000000")
         send_a_cmd(cmdToMachine,"G28")
         send_a_cmd(cmdToMachine,"M18")
     close_serial(cmdToMachine)
@@ -1621,7 +1666,7 @@ DEVICE_TEMP_PIN = 20
 PRESS_PIN=17
 LED_PIN = 23
 ModelType = 0
-VERSION = '4.02.13'
+VERSION = '4.02.15'
 TEMP_PATH = "/sys/bus/w1/devices/"
 file_path = "/home/pi/python_project"
 
@@ -1681,16 +1726,16 @@ InitPrintState()
 InitLightengine()
 InitPowerPin()
 
-root = Tk()
-root.attributes("-fullscreen", True)
-f = Frame(root, width=1920, height=1080)
-PreViewFrame = Frame(f)
-PreViewFrame.place(relx=0.5, rely=0.5, anchor=CENTER)
-imageFile = file_path + "/projection/" + "blackscreen.png"
-imageSplash = ImageTk.PhotoImage(Image.open(imageFile))
-PreViewImage = Label(PreViewFrame, image=imageSplash)
-PreViewImage.pack()
-f.pack()
+#root = Tk()
+#root.attributes("-fullscreen", True)
+#f = Frame(root, width=1920, height=1080)
+#PreViewFrame = Frame(f)
+#PreViewFrame.place(relx=0.5, rely=0.5, anchor=CENTER)
+#imageFile = file_path + "/projection/" + "blackscreen.png"
+#imageSplash = ImageTk.PhotoImage(Image.open(imageFile))
+#PreViewImage = Label(PreViewFrame, image=imageSplash)
+#PreViewImage.pack()
+#f.pack()
 
 ReadPCConfigIni("init")
 

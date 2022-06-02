@@ -1560,7 +1560,7 @@ CY_RETURN_STATUS GpioGetSpirdyBusy(int deviceNumber, int interfaceNum, bool* isB
 		puts("## GpioGetSpirdyBusy: GpioRead Fail ##");
 		return rStatus;
 	}
-	puts("## GpioGetSpirdyBusy: GpioRead succeed ##");
+	//puts("## GpioGetSpirdyBusy: GpioRead succeed ##");
 	*isBusy = !*isBusy;
 	return rStatus;
 }
@@ -1590,7 +1590,7 @@ CY_RETURN_STATUS GpioGetSysrdyBusy(int deviceNumber, int interfaceNum, bool* isB
 		puts("## GpioGetSysrdyBusy: GpioRead Fail ##");
 		return rStatus;
 	}
-	puts("## GpioGetSysrdyBusy: GpioRead succeed ##");
+	//puts("## GpioGetSysrdyBusy: GpioRead succeed ##");
 	*isBusy = !*isBusy;
 	return rStatus;
 }
