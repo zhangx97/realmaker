@@ -324,6 +324,7 @@ def ControlPrint():#控制打印
             LightengineProjState(False)
             return
 
+        time.sleep(4)
         logger.info('Begin print...')
        
         #tempFlag = 0
@@ -382,11 +383,11 @@ def build_a_layer(layer_num):#新建图层
 
 
     try:
-        path = file_path + "/" + "images/{0:0>4}.bmp"
+        path = file_path + "/" + "images/{0:0>4}.png"
         imageFile = path.format(layer_num)
-        #imageFileMask = LayerMask(imageFile)     #layer mask image
+        imageFileMask = LayerMask(imageFile)     #layer mask image
         CuringTimeParam = int(LayerResinCuringTime * 60)
-        light_engine.SPIPrint_py(CuringTimeParam, imageFile, layer_num)
+        light_engine.SPIPrint_py(CuringTimeParam, imageFileMask, layer_num)
         time.sleep(1.5)
         #image1 = Image.open(imageFileMask)
         #image2 = ImageTk.PhotoImage(imageFileMask)
@@ -446,10 +447,12 @@ def ImageProjection(img_name):#图像投影
     try:
         imageFile = file_path + "/projection/" + img_name
         #imageFileMask = LayerMask(imageFile)     #layer mask image
-        ret = light_engine.SPIPrint_py(1800, imageFile, 0)
-        if ret is not 0:
-            logger.info("ImageProjection SPIPrint False")
-            return False
+        #ret = light_engine.SPIPrint_py(1800, imageFileMask, 0)
+        #if ret is not 0:
+        #    logger.info("ImageProjection SPIPrint False")
+        #    return False
+        dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (54000, imageFile, 0))
+        dark_image.start()
         #image1 = Image.open(imageFileMask)
         #image2 = ImageTk.PhotoImage(imageFileMask)
         #PreViewImage.configure(image=image2)
@@ -466,19 +469,30 @@ def LayerMask(imgPath):#图层掩码
 
     image_im = image_im.transpose(Image.FLIP_TOP_BOTTOM) #FLIP Y
 
-    if image_im.mode != "RGB":
-        image_im = image_im.convert('RGB')
-    if im_filter != "RGB":
-        im_filter = im_filter.convert('RGB')
+    #if image_im.mode != "RGB":
+    #    image_im = image_im.convert('RGB')
+    #if im_filter != "RGB":
+    #    im_filter = im_filter.convert('RGB')
+
+    if image_im.mode != "P":
+        image_im = image_im.convert('P')
+    if im_filter != "P":
+        im_filter = im_filter.convert('P')
+
+    bmpimgPath = imgPath.split(".")[0] + ".bmp"
+    image_im.save(bmpimgPath)
+
+    image_bmp = Image.open(bmpimgPath)
 
     if is_mask:
-        im_out = ImageChops.multiply(im_filter, image_im)
+        im_out = ImageChops.multiply(im_filter, image_bmp)
         #Full_Image = Image.new("RGB", (1920, 1080))
         #Full_Image.paste(im_out, (0,0,1920,1080))
     else:
         im_out = image_im
-        
-    return im_out
+    
+    im_out.save(bmpimgPath)
+    return bmpimgPath
 
 def ControlContinue():#继续
     global continue_cmds, CurState, states
@@ -1174,7 +1188,7 @@ def TcpMessageProcess(Msg, cs):
     elif cmd == 'testprint':
         light_engine.Proj_On()
         time.sleep(2)
-        dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (1800, "/home/pi/python_project/projection/test.bmp", 0))
+        dark_image = threading.Thread(target = light_engine.SPIPrint_py, args = (54000, "/home/pi/python_project/projection/test.bmp", 0))
         dark_image.start()
         logger.info("dark_image test")
         time.sleep(4)
@@ -1184,7 +1198,18 @@ def TcpMessageProcess(Msg, cs):
         ledtemp = light_engine.ReadLEDTemp()
         logger.info("test")
         logger.info("dac: "+str(dac)+" sensor: "+str(sensor)+" ledtemp: "+str(ledtemp))
-
+    elif cmd == 'setdac':
+        light_engine.WriteLEDCurrentValue(int(Msg.split()[1]))
+        cs.send(Msg + '!')
+    elif cmd == 'getdac':
+        dac = light_engine.ReadLEDCurrentValue()
+        cs.send(cmd + str(dac) + '!')
+    elif cmd == 'getlight':
+        sensor = light_engine.ReadLEDSensorValue()
+        cs.send(cmd + str(sensor) + '!')
+    elif cmd == 'getledtemp':
+        ledtemp = light_engine.ReadLEDTemp()
+        cs.send(cmd + str(ledtemp) + '!')
     else:
         cs.send("Unknown command!")
 
@@ -1347,7 +1372,7 @@ def SetLEDOnIndex(set_num):
             
     
 def LightengineState(state):
-    global light_engine, offset
+    global light_engine, offset, LightSensor
 
     logger.info("LightengineState start")
     if state :
@@ -1553,8 +1578,9 @@ def DetectFile():
     if os.path.exists(filemaskdir):
         for root, subFolders, files in os.walk(filemaskdir):#遍历文件
             for f in files:
-                if f.find('.png') > 0:
+                if f.find('.bmp') > 0:
                     mask_img = filemaskdir + f
+                    logger.info("mask image is : " + str(mask_img))
 
 def AdjustPlatform(cmdList):
     global DevSer

@@ -1630,6 +1630,8 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 	yo_spi_set_bits_per_word(spi_dev, 8);
 	yo_spi_set_speed(spi_dev, 48000000); //48MHz
 
+	printf("print %d\n", layer_num);
+
 	///step 1
 	ret = I2CSetCRC16OnOff(dN, I2C_IF_NUM, true);
 	if (ret != 0)

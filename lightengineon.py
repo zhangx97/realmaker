@@ -189,7 +189,7 @@ class lightenginestate:
         #time.sleep(1)
         #self.LED_On()
         #time.sleep(1)
-        self.WriteLEDCurrentValue(100)
+        self.WriteLEDCurrentValue(500)
         setNum = 0
         while setNum < 10:
             rValue = self.SetLightValue(value, offset)
