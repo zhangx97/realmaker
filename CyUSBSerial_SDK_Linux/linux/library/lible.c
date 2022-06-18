@@ -20,6 +20,13 @@
 #define SPI_IF_NUM 1
 #define GPIO_IF_NUM 2
 
+#define DEBUG
+#ifdef DEBUG
+#define D(x) x
+#else
+#define D(x)
+#endif
+
 typedef struct _CY_DEVICE_STRUCT {
     int deviceNumber;
     int interfaceFunctionality[CY_MAX_INTERFACES];
@@ -89,7 +96,7 @@ bool ResetCypressDevice (int deviceNum, int interfaceNum) {
         rStatus = CyGetSignature (handle, sig);
         if (rStatus == CY_SUCCESS){
 	    	CyResetDevice(handle);
- 		printf ("CY:Reset Devices Number:<%d> \n", deviceNum);
+ 		D(printf("CY:Reset Devices Number:<%d> \n", deviceNum));
 	    	CyClose (handle);
 			return 0;
         }
@@ -189,13 +196,6 @@ void printListOfDevices (bool isPrint)
         printf ("---------------------------------------------------------------------------------\n\n");
     }
 }
-
-//#define DEBUG
-#ifdef DEBUG
-#  define D(x) x
-#else
-#  define D(x)
-#endif
 
 enum CommandId {
 	WRITE_LED_ENABLE = 0x52,
@@ -397,7 +397,7 @@ CY_RETURN_STATUS I2CWrite(int deviceNumber, int interfaceNum, UINT8 address, int
 
 	CY_RETURN_STATUS rStatus;
 
-	printf("Opening %x I2C device with device number %d...\n", address, deviceNumber);
+	D(printf("Opening %x I2C device with device number %d...\n", address, deviceNumber));
 
 	//Open the device at deviceNumber
 	rStatus = CyOpen(deviceNumber, interfaceNum, &cyHandle);
@@ -408,7 +408,7 @@ CY_RETURN_STATUS I2CWrite(int deviceNumber, int interfaceNum, UINT8 address, int
 	}
 
 	// I2C Read/Write operations
-	printf("Performing %x I2C Write operation...\n", address);
+	D(printf("Performing %x I2C Write operation...\n", address));
 
 	//Initialize the CY_I2C_DATA_CONFIG variable
 	cyI2CDataConfig.slaveAddress = address;
@@ -424,8 +424,8 @@ CY_RETURN_STATUS I2CWrite(int deviceNumber, int interfaceNum, UINT8 address, int
 		return rStatus;
 	}
 
-	printf("Completed %x I2C write transfer with %d bytes.\n", address, len);
-	printf("End %x status is %d.\n", address, rStatus);
+	D(printf("Completed %x I2C write transfer with %d bytes.\n", address, len));
+	D(printf("End %x status is %d.\n", address, rStatus));
 	CyClose (cyHandle);
 	return rStatus;
 }
@@ -734,7 +734,7 @@ int SetLedCurrent(int deviceNumber, int interfaceNum, int currentRed, int curren
 		free(sendBuf);
 		return -1;
 	}
-
+	D(printf("Write LED current succeed \n"));
 	free(sendBuf);
 	return 0;
 
@@ -790,13 +790,10 @@ int GetLight(int deviceNumber, int interfaceNum, int *lightValue)
 	recvBuf = (UINT8 *)malloc(cReadSize);
 	sendBuf[0] = lightSensorPowerOnCommand;
 	sendBuf[1] = lightSensorPowerOnData;
-	fflush(stdout);
-	setvbuf(stdout, NULL, _IONBF, 0);
-	freopen("./my.log", "a", stdout); //打印到my.log文件
-	printf("\naSlaveAddress7bit is %x\n", aSlaveAddress7bit);
-	printf("lightSensorPowerOnCommand is %x\n", lightSensorPowerOnCommand);
-	printf("lightSensorPowerOnData is %x\n", lightSensorPowerOnData);
-	printf("lightSensorReadSensorValueCommand is %x\n", lightSensorReadSensorValueCommand);
+	D(printf("\naSlaveAddress7bit is %x\n", aSlaveAddress7bit));
+	D(printf("lightSensorPowerOnCommand is %x\n", lightSensorPowerOnCommand));
+	D(printf("lightSensorPowerOnData is %x\n", lightSensorPowerOnData));
+	D(printf("lightSensorReadSensorValueCommand is %x\n", lightSensorReadSensorValueCommand));
 	status = I2CWrite(deviceNumber, interfaceNum, aSlaveAddress7bit, cWriteSize, sendBuf);
 	if(status != CY_SUCCESS)
 	{
@@ -841,7 +838,7 @@ int GetLight(int deviceNumber, int interfaceNum, int *lightValue)
 	free(sendBuf);
 	free(sendBuf2);
 	free(recvBuf);
-	printf("success read %d\n", *lightValue);
+	D(printf("success read %d\n", *lightValue));
 	return 0;			
 }
 
@@ -1126,7 +1123,7 @@ int i2cVerifyData (int deviceNumber, int interfaceNum)
 
     D(printf ("\n Data that is read from i2c ...\n"));
     for (rStatus = 0; rStatus < length; rStatus++){
-        printf ("%x ", rbuffer[rStatus]);
+        D(printf ("%x ", rbuffer[rStatus]));
         if (rbuffer[rStatus] != wbuffer[rStatus + 2]){
             isVerify = false;
         }
@@ -1165,7 +1162,7 @@ CY_RETURN_STATUS cyAPIInit(int lightSensorType)
 	
 	fflush(stdout);
 	setvbuf(stdout, NULL, _IONBF, 0);
-	freopen("./my.log", "a", stdout); //打印到my.log文件
+	freopen("/home/pi/log/my.log", "a", stdout); //打印到my.log文件
 
     glDevice = (CY_DEVICE_STRUCT *)malloc (CY_MAX_DEVICES *sizeof (CY_DEVICE_STRUCT));
     if (glDevice == NULL){
@@ -1393,7 +1390,7 @@ CY_RETURN_STATUS I2CSetCRC16OnOff(int deviceNumber, int interfaceNum, bool enabl
 
 	int cWRITESIZE = 2;
 	UINT8* sendBuf;
-
+	D(puts("## I2CSetCRC16OnOff: I2CWrite start ##"));
 	sendBuf = (UINT8*)malloc(cWRITESIZE);
 
 	sendBuf[0] = WRITE_FPGA_CONTROL;  //CAh
@@ -1413,7 +1410,7 @@ CY_RETURN_STATUS I2CSetCRC16OnOff(int deviceNumber, int interfaceNum, bool enabl
 		free(sendBuf);
 		return rStatus;
 	}
-	puts("## I2CSetCRC16OnOff: I2CWrite succeed ##");
+	D(puts("## I2CSetCRC16OnOff: I2CWrite succeed ##"));
 	free(sendBuf);
 	return rStatus;
 }
@@ -1424,7 +1421,7 @@ CY_RETURN_STATUS I2CSetActiveBuffer(int deviceNumber, int interfaceNum, bool act
 
 	int cWRITESIZE = 2;
 	UINT8* sendBuf;
-
+	D(puts("## I2CSetActiveBuffer: I2CWrite start ##"));
 	sendBuf = (UINT8*)malloc(cWRITESIZE);
 
 	sendBuf[0] = WRITE_ACTIVE_BUFFER;   //C5h
@@ -1444,7 +1441,7 @@ CY_RETURN_STATUS I2CSetActiveBuffer(int deviceNumber, int interfaceNum, bool act
 		free(sendBuf);
 		return rStatus;
 	}
-	puts("## I2CSetActiveBuffer: I2CWrite succeed ##");
+	D(puts("## I2CSetActiveBuffer: I2CWrite succeed ##"));
 	free(sendBuf);
 	return rStatus;
 }
@@ -1455,7 +1452,7 @@ CY_RETURN_STATUS I2cSetInputSource(int deviceNumber, int interfaceNum, int selec
 	int cWRITESIZE = 2;
 	UINT8* sendBuf;
 
-
+	D(puts("## I2cSetInputSource: I2CWrite start ##"));
 	/*if( !WaitForI2cIdle(dN) )
 		return -1;*/
 
@@ -1472,7 +1469,7 @@ CY_RETURN_STATUS I2cSetInputSource(int deviceNumber, int interfaceNum, int selec
 		free(sendBuf);
 		return rStatus;
 	}
-	puts("## I2cSetInputSource: I2CWrite succeed ##");
+	D(puts("## I2cSetInputSource: I2CWrite succeed ##"));
 	free(sendBuf);
 	return rStatus;
 }
@@ -1483,7 +1480,7 @@ CY_RETURN_STATUS I2CSetExternalPrintConfiguration(int deviceNumber, int interfac
 
 	int cWRITESIZE = 3;
 	UINT8* sendBuf;
-
+	D(puts("## I2CSetExternalPrintConfiguration: I2CWrite start ##"));
 	sendBuf = (UINT8*)malloc(cWRITESIZE);
 
 	sendBuf[0] = WRITE_EXTERNAL_PRINT_CONFIGURATION;   //A8h
@@ -1497,7 +1494,7 @@ CY_RETURN_STATUS I2CSetExternalPrintConfiguration(int deviceNumber, int interfac
 		return rStatus;
 		free(sendBuf);
 	}
-	puts("## I2CSetExternalPrintConfiguration: I2CWrite succeed ##");
+	D(puts("## I2CSetExternalPrintConfiguration: I2CWrite succeed ##"));
 	free(sendBuf);
 	return rStatus;
 }
@@ -1508,7 +1505,7 @@ CY_RETURN_STATUS I2CSetParallelBuffer(int deviceNumber, int interfaceNum, int pa
 
 	int cWRITESIZE = 2;
 	UINT8* sendBuf;
-
+	D(puts("## I2CSetParallelBuffer: I2CWrite start ##"));
 	sendBuf = (UINT8*)malloc(cWRITESIZE);
 
 	sendBuf[0] = WRITE_PARALLEL_VIDEO;   //C3h
@@ -1520,7 +1517,7 @@ CY_RETURN_STATUS I2CSetParallelBuffer(int deviceNumber, int interfaceNum, int pa
 		puts("## I2CSetParallelBuffer: I2CWrite Fail ##");
 		return rStatus;
 	}
-	puts("## I2CSetParallelBuffer: I2CWrite succeed ##");
+	D(puts("## I2CSetParallelBuffer: I2CWrite succeed ##"));
 	return rStatus;
 }
 
@@ -1530,7 +1527,7 @@ CY_RETURN_STATUS I2CSetExternalPrintControl(int deviceNumber, int interfaceNum, 
 
 	int cWRITESIZE = 6;
 	UINT8* sendBuf;
-
+	D(puts("## I2CSetExternalPrintControl: I2CWrite start ##"));
 	sendBuf = (UINT8*)malloc(cWRITESIZE);
 
 	sendBuf[0] = WRITE_EXTERNAL_PRINT_CONTROL;   //C1h
@@ -1546,7 +1543,7 @@ CY_RETURN_STATUS I2CSetExternalPrintControl(int deviceNumber, int interfaceNum, 
 		puts("## I2CSetExternalPrintControl: I2CWrite Fail ##");
 		return rStatus;
 	}
-	puts("## I2CSetExternalPrintControl: I2CWrite succeed ##");
+	D(puts("## I2CSetExternalPrintControl: I2CWrite succeed ##"));
 	return rStatus;
 }
 
@@ -1609,28 +1606,15 @@ void Check_SYS_RDY_Busy(int deviceNumber, int interfaceNum)
 	}
 }
 
-
-
 int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 {
-	fflush(stdout);
-	setvbuf(stdout, NULL, _IONBF, 0);
-	freopen("/home/pi/log/my.log", "a", stdout); //打印到my.log文件
-
 	int ret = 0;
 	bool flagbuf = false;
 
 	char framesLow = 0;
 	char framesHigh = 0;
 
-	spi_dev0 = yo_spi_init(0, 0);
-	spi* spi_dev;
-	spi_dev = spi_dev0;
-	yo_spi_set_mode(spi_dev, 0);
-	yo_spi_set_bits_per_word(spi_dev, 8);
-	yo_spi_set_speed(spi_dev, 48000000); //48MHz
-
-	printf("print %d\n", layer_num);
+	D(printf("1633 print %d\n", layer_num));
 
 	///step 1
 	ret = I2CSetCRC16OnOff(dN, I2C_IF_NUM, true);
@@ -1647,7 +1631,7 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 	if (ret != 0)
 		return -1;
 
-	usleep(1000);
+	//usleep(1000);
 	///step 3-1
 	ret = I2cSetInputSource(dN, I2C_IF_NUM, 0xFF);  //set standby mode
 	if (ret != 0)
@@ -1659,7 +1643,7 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 	if (ret != 0)
 		return -1;
 
-	usleep(5000);  //5ms
+	//usleep(5000);  //5ms
 ///step 4
 	//++icycle;
 	ret = yo_spidatastream_write(dN, imageFile);  //SPI data stream transmission, send the data and waiting for the SPI_RDY pull high
@@ -1675,19 +1659,19 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 	if (ret != 0)
 		return -1;
 
-	usleep(5000);  //5ms
+	//usleep(5000);  //5ms
 ///step 6
 	ret = I2CSetParallelBuffer(dN, I2C_IF_NUM, 0x01);  //read and send buffer
 	if (ret != 0)
 		return -1;
 
-	usleep(5000);  //5ms
+	//usleep(5000);  //5ms
 ///step 7
 	ret = I2cSetInputSource(dN, I2C_IF_NUM, 0x06);  //set External Print mode, and waiting for the SYS_RDY pull high
 	if (ret != 0)
 		return -1;
 
-	usleep(5000);  //5ms
+	//usleep(5000);  //5ms
 	Check_SYS_RDY_Busy(dN, GPIO_IF_NUM);  //waiting for the SYS_RDY get ready(high)
 
 	framesLow = (char)(frames & 0xff);
@@ -1695,7 +1679,7 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 
 	puts(" ");
 
-	printf("The curing time is  %.2f s.(%d/60 s)\n ", frames / 60.0, frames);
+	D(printf("The curing time is  %.2f s.(%d/60 s)\n ", frames / 60.0, frames));
 
 	ret = I2CSetExternalPrintControl(dN, I2C_IF_NUM, 0x00, 0x05, 0x00, framesLow, framesHigh);  //set External Print Layer Control and start print
 	if (ret != 0)
@@ -1710,14 +1694,23 @@ int SPIPrint(int dN, int frames, char* imageFile, int layer_num)
 
 int yo_spidatastream_write(int dN, char* imageFile)
 {
+	D(puts("yo_spidatastream_write start"));
 	//1440P 2560x1440=3687478, bmp file include header(1078bytes) and image data(3686400).
 	int sdata_size;
 	unsigned char* pStream_data;
 	FILE* fp;
 
-	fp = fopen(imageFile, "rb");
+	spi_dev0 = yo_spi_init(0, 0);
+	spi* spi_dev;
+	spi_dev = spi_dev0;
+	yo_spi_set_mode(spi_dev, 0);
+	yo_spi_set_bits_per_word(spi_dev, 8);
+	yo_spi_set_speed(spi_dev, 48000000); //48MHz
 
+	fp = fopen(imageFile, "rb");
+	D(puts("yo_spidatastream_write open"));
 	if (fp == NULL) {
+		puts("open fail");
 		return -1;
 	}
 	else {   //write data stream to fpga
@@ -1726,9 +1719,11 @@ int yo_spidatastream_write(int dN, char* imageFile)
 		if (pStream_data == NULL) {
 			fclose(fp);
 			free(pStream_data);
+			puts("malloc pStream fail");
 			return -1;
 		}
 		else {
+			D(puts("yo_spidatastream_write no null"));
 			fread(pStream_data, 1, (unsigned long)sdata_size, fp);
 
 			if ((SPIWriteData(sdata_size, (char*)pStream_data)) != 0) {

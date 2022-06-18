@@ -324,20 +324,22 @@ def ControlPrint():#控制打印
             LightengineProjState(False)
             return
 
-        time.sleep(4)
+        time.sleep(10)
         logger.info('Begin print...')
        
         #tempFlag = 0
 
         #print model count #####
-        while finish_count < ModelCount + BottomCount: 
-            build_a_layer(finish_count)
-            if PrintState == states[2]:            
-                ControlPause()
-            if PrintState == states[1]:
-                ControlStop()
-                return
-        
+        #while finish_count < ModelCount + BottomCount: 
+        #    build_a_layer(finish_count)
+        #    if PrintState == states[2]:            
+        #        ControlPause()
+        #    if PrintState == states[1]:
+        #        ControlStop()
+        #        return
+
+        start_print()
+
         ControlStop()      
     except Exception, e:
         PrintStop = True
@@ -440,6 +442,165 @@ def build_a_layer(layer_num):#新建图层
         return
       
     return True
+
+def PlatformMove(layer_num):
+    global LayerThickness, CrackDistance, AscendSpeed, DescendSpeed
+    global BottomCount, DevSer
+    
+    logger.info("The platform starts to move")
+    TimeMovelayer_up = time.time()
+    send_a_cmd(DevSer,("G1 Z{0:.3f} F{1:d}").format(LayerThickness*layer_num+CrackDistance, AscendSpeed))
+    send_a_cmd(DevSer,("G1 Z{0:.3f} F{1:d}").format(LayerThickness*(layer_num+1), DescendSpeed))
+    TimeMovelayer_down = time.time()
+    TimeMovelayer = TimeMovelayer_down - TimeMovelayer_up
+    print "TimeMovelayer="+str(TimeMovelayer)
+    logger.info("Platform stops moving. layer_num : "+str(layer_num))
+
+def start_print():
+    global BottomCuringTimes, ResinCuringTime, SpecialExposeLayer
+    global BottomCount, file_path, curBrightness, curCurrent, curLEDTemp, finish_count
+
+    finish_count = 0
+    #PlatformMove(finish_count)
+    #step1
+    ret = light_engine.LEI2CSetCRC16OnOff(True)
+    if ret != 0:
+        logger.info("step1 I2CSetCRC16OnOff fail")
+        return False
+    time.sleep(0.005)
+
+    #step2
+    flagbuf = False
+    ret = light_engine.LEI2CSetActiveBuffer(flagbuf)
+    flagbuf = not flagbuf
+    if ret != 0:
+        logger.info("step2 I2CSetActiveBuffer fail")
+        return False
+    time.sleep(0.005)
+
+    #step3-1
+    ret = light_engine.LEI2cSetInputSource(0xFF)
+    if ret != 0:
+        logger.info("step3-1 I2cSetInputSource fail")
+        return False
+
+    time.sleep(0.5)
+
+    #step3-2
+    ret = light_engine.LEI2CSetExternalPrintConfiguration(0x00, 0x04)
+    if ret != 0:
+        logger.info("step3-2 I2CSetExternalPrintConfiguration fail")
+        return False
+    time.sleep(0.005)
+    #step4
+
+    path = file_path + "/" + "images/{0:0>4}.png"
+    imageFile = path.format(finish_count)
+    imageFileMask = LayerMask(imageFile)     #layer mask image
+    logger.info("imageFileMask : " + str(imageFileMask))
+    ret = light_engine.LE_yo_spidatastream_write(imageFileMask)
+    if ret != 0:
+        logger.info("step4 yo_spidatastream_write fail")
+        return False
+
+    light_engine.LECheck_SPI_RDY_Busy()
+
+    #step5
+    ret = light_engine.LEI2CSetActiveBuffer(flagbuf)
+    flagbuf = not flagbuf
+    if ret != 0:
+        logger.info("step5 I2CSetActiveBuffer fail")
+        return False
+    time.sleep(0.005)
+
+    #step6
+    ret = light_engine.LEI2CSetParallelBuffer(0x01)
+    if ret != 0:
+        logger.info("step6 I2CSetParallelBuffer fail")
+        return False
+    time.sleep(0.005)
+
+    #step7
+    ret = light_engine.LEI2cSetInputSource(0x06)
+    if ret != 0:
+        logger.info("step7 I2cSetInputSource fail")
+        return False
+    time.sleep(0.005)
+
+    light_engine.LECheck_SYS_RDY_Busy()
+
+    SensorValIndex = 0
+                 
+    while True:
+        PlatformMove(finish_count)
+        time.sleep(1)
+
+        if finish_count >= BottomCount:
+            if finish_count >= int(SpecialExposeLayer[0]) and finish_count <= int(SpecialExposeLayer[1]):
+                LayerResinCuringTime  = float(SpecialExposeLayer[2])
+            else:
+                LayerResinCuringTime = ResinCuringTime
+        else:
+            LayerResinCuringTime = int(BottomCuringTimes[finish_count])
+
+        frames = int(LayerResinCuringTime * 60)
+        framesLow = frames & 0xFF
+        framesHigh = (frames >> 8) & 0xFF
+
+        #step8
+        logger.info("expose start")
+        ret = light_engine.LEI2CSetExternalPrintControl(0x00, 0x05, 0x00, framesLow, framesHigh)
+        if ret != 0:
+            logger.info("step8 I2CSetExternalPrintControl fail")
+            return False
+        time.sleep(LayerResinCuringTime)
+        logger.info("expose end " + str(LayerResinCuringTime))
+
+        if finish_count >= ModelCount + BottomCount - 1:
+            ret = light_engine.LEI2cSetInputSource(0xFF)
+            if ret != 0:
+                logger.info("I2cSetInputSource 0xFF fail")
+                return False
+            logger.info("print end")
+            return True
+
+        if finish_count == int((ModelCount + BottomCount) * 0.1 * SensorValIndex):
+            light_engine.LE_yo_spidatastream_write("/home/pi/python_project/projection/blackscreen.bmp")
+            light_engine.LECheck_SPI_RDY_Busy()
+            light_engine.LEI2CSetActiveBuffer(flagbuf)
+            flagbuf = not flagbuf
+            frames = 180
+            framesLow = frames & 0xFF
+            framesHigh = (frames >> 8) & 0xFF
+            light_engine.LEI2CSetExternalPrintControl(0x00, 0x05, 0x00, framesLow, framesHigh)
+            SensorValIndex += 1
+            curBrightness = light_engine.ReadLEDSensorValue()
+            time.sleep(0.5)
+            curCurrent = light_engine.ReadLEDCurrentValue()
+            time.sleep(0.5)
+            curLEDTemp = light_engine.ReadLEDTemp()
+            print curBrightness, curCurrent, curLEDTemp
+            logger.info('light_brightness:'+str(curBrightness)+'  light_current:'+str(curCurrent)+'  light_temp:'+str(curLEDTemp))
+            time.sleep(3)
+        
+        finish_count = finish_count + 1
+
+        path = file_path + "/" + "images/{0:0>4}.png"
+        imageFile = path.format(finish_count)
+        imageFileMask = LayerMask(imageFile)
+
+        light_engine.LE_yo_spidatastream_write(imageFileMask)
+
+        #if LayerResinCuringTime > 0.9:   #0.9 is spi image data transmission time, it's changed depand on SPI speed setting
+        #    sleeptime = LayerResinCuringTime - 0.9
+        #    time.sleep(sleeptime)
+        #else:
+        #    light_engine.LECheck_SPI_RDY_Busy()
+        light_engine.LECheck_SPI_RDY_Busy()
+
+        light_engine.LEI2CSetActiveBuffer(flagbuf)
+        flagbuf = not flagbuf
+        time.sleep(0.005)
 
 def ImageProjection(img_name):#图像投影
     global file_path, logger
@@ -1196,8 +1357,8 @@ def TcpMessageProcess(Msg, cs):
         dac = light_engine.ReadLEDCurrentValue()
         sensor = light_engine.ReadLEDSensorValue()
         ledtemp = light_engine.ReadLEDTemp()
-        logger.info("test")
         logger.info("dac: "+str(dac)+" sensor: "+str(sensor)+" ledtemp: "+str(ledtemp))
+        cs.send(Msg + '!')
     elif cmd == 'setdac':
         light_engine.WriteLEDCurrentValue(int(Msg.split()[1]))
         cs.send(Msg + '!')
@@ -1210,6 +1371,40 @@ def TcpMessageProcess(Msg, cs):
     elif cmd == 'getledtemp':
         ledtemp = light_engine.ReadLEDTemp()
         cs.send(cmd + str(ledtemp) + '!')
+    elif cmd == 'testprint1':
+        light_engine.Proj_On()
+        time.sleep(2)
+        light_engine.LEI2CSetCRC16OnOff(True)
+        time.sleep(0.005)
+        light_engine.LEI2CSetActiveBuffer(False)
+        time.sleep(0.005)
+        light_engine.LEI2cSetInputSource(0xFF)
+        time.sleep(0.5)
+        light_engine.LEI2CSetExternalPrintConfiguration(0x00, 0x04)
+        time.sleep(0.005)
+        light_engine.LE_yo_spidatastream_write("/home/pi/python_project/projection/test.bmp")
+        light_engine.LECheck_SPI_RDY_Busy()
+        light_engine.LEI2CSetActiveBuffer(True)
+        time.sleep(0.005)
+        light_engine.LEI2CSetParallelBuffer(0x01)
+        time.sleep(0.005)
+        light_engine.LEI2cSetInputSource(0x06)
+        time.sleep(0.005)
+        light_engine.LECheck_SYS_RDY_Busy()
+        frames = int(Msg.split()[1]) * 60
+        framesLow = frames & 0xFF
+        framesHigh = (frames >> 8) & 0xFF
+        light_engine.LEI2CSetExternalPrintControl(0x00, 0x05, 0x00, framesLow, framesHigh)
+        time.sleep(1)
+        dac = light_engine.ReadLEDCurrentValue()
+        sensor = light_engine.ReadLEDSensorValue()
+        ledtemp = light_engine.ReadLEDTemp()
+        logger.info("dac: "+str(dac)+" sensor: "+str(sensor)+" ledtemp: "+str(ledtemp))
+        time.sleep(int(Msg.split()[1]))
+        light_engine.LEI2cSetInputSource(0xFF)
+        time.sleep(0.005)
+        cs.send(Msg + '!')
+
     else:
         cs.send("Unknown command!")
 

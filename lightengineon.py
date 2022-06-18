@@ -72,41 +72,39 @@ class lightenginestate:
         self.SPIPrint.argtypes = [c_int, c_int, c_char_p, c_int]
         self.SPIPrint.restype = c_int
         
-        #self.I2CSetCRC16OnOff = self.cyusb.I2CSetCRC16OnOff
-        #self.I2CSetCRC16OnOff.argtypes = [c_int, c_int, c_bool]
-        #self.I2CSetCRC16OnOff.restype = c_int
+        self.I2CSetCRC16OnOff = self.cyusb.I2CSetCRC16OnOff
+        self.I2CSetCRC16OnOff.argtypes = [c_int, c_int, c_bool]
+        self.I2CSetCRC16OnOff.restype = c_int
 
-        #self.I2CSetActiveBuffer = self.cyusb.I2CSetActiveBuffer
-        #self.I2CSetActiveBuffer.argtypes = [c_int, c_int, c_bool]
-        #self.I2CSetActiveBuffer.restype = c_int
+        self.I2CSetActiveBuffer = self.cyusb.I2CSetActiveBuffer
+        self.I2CSetActiveBuffer.argtypes = [c_int, c_int, c_bool]
+        self.I2CSetActiveBuffer.restype = c_int
 
-        #self.I2cSetInputSource = self.cyusb.I2cSetInputSource
-        #self.I2cSetInputSource.argtypes = [c_int, c_int, c_int]
-        #self.I2cSetInputSource.restype = c_int
+        self.I2cSetInputSource = self.cyusb.I2cSetInputSource
+        self.I2cSetInputSource.argtypes = [c_int, c_int, c_int]
+        self.I2cSetInputSource.restype = c_int
 
-        #self.I2CSetExternalPrintConfiguration = self.cyusb.I2CSetExternalPrintConfiguration
-        #self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int, c_int]
-        #self.I2CSetExternalPrintConfiguration.restype = c_int
+        self.I2CSetExternalPrintConfiguration = self.cyusb.I2CSetExternalPrintConfiguration
+        self.I2CSetExternalPrintConfiguration.argtypes = [c_int, c_int, c_int, c_int]
+        self.I2CSetExternalPrintConfiguration.restype = c_int
 
-        #self.I2CSetParallelBuffer = self.cyusb.I2CSetParallelBuffer
-        #self.I2CSetParallelBuffer.argtypes = [c_int, c_int, c_int]
-        #self.I2CSetParallelBuffer.restype = c_int
+        self.I2CSetParallelBuffer = self.cyusb.I2CSetParallelBuffer
+        self.I2CSetParallelBuffer.argtypes = [c_int, c_int, c_int]
+        self.I2CSetParallelBuffer.restype = c_int
 
-        #self.I2CSetExternalPrintControl = self.cyusb.I2CSetExternalPrintControl
-        #self.I2CSetExternalPrintControl.argtypes = [c_int, c_int, c_int, c_int, c_int, c_int, c_int]
-        #self.I2CSetExternalPrintControl.restype = c_int
+        self.I2CSetExternalPrintControl = self.cyusb.I2CSetExternalPrintControl
+        self.I2CSetExternalPrintControl.argtypes = [c_int, c_int, c_int, c_int, c_int, c_int, c_int]
+        self.I2CSetExternalPrintControl.restype = c_int
 
-        #self.Check_SPI_RDY_Busy = self.cyusb.Check_SPI_RDY_Busy
-        #self.Check_SYS_RDY_Busy = self.cyusb.Check_SYS_RDY_Busy
+        self.Check_SPI_RDY_Busy = self.cyusb.Check_SPI_RDY_Busy
+        self.Check_SPI_RDY_Busy.argtypes = [c_int, c_int]
 
-        #self.yo_spidatastream_write = self.cyusb.yo_spidatastream_write
-        #self.yo_spidatastream_write.argtypes = [c_char_p, ]
-        #self.yo_spidatastream_write.restype = c_int
-        
+        self.Check_SYS_RDY_Busy = self.cyusb.Check_SYS_RDY_Busy
+        self.Check_SYS_RDY_Busy.argtypes = [c_int, c_int]
 
-        #self.SPIWriteData = self.cyusb.SPIWriteData
-        #self.SPIWriteData.argtypes = [c_int, c_char_p]
-        #self.SPIWriteData.restypes = c_int
+        self.yo_spidatastream_write = self.cyusb.yo_spidatastream_write
+        self.yo_spidatastream_write.argtypes = [c_int, c_char_p]
+        self.yo_spidatastream_write.restype = c_int
 
     def InitLED(self):
         if self.Proj_On() < 0:
@@ -368,6 +366,40 @@ class lightenginestate:
 
 	#return True
 
+    def LEI2CSetCRC16OnOff(self, enable):
+        ret = self.I2CSetCRC16OnOff(self.device0_num, I2C_IF_NUM, enable)
+        return ret
+
+    def LEI2CSetActiveBuffer(self, flagbuf):
+        ret = self.I2CSetActiveBuffer(self.device0_num, I2C_IF_NUM, flagbuf)
+        return ret
+
+    def LEI2cSetInputSource(self, mode):
+        ret = self.I2cSetInputSource(self.device0_num, I2C_IF_NUM, mode)
+        return ret
+
+    def LEI2CSetExternalPrintConfiguration(self, cmd1, cmd2):
+        ret = self.I2CSetExternalPrintConfiguration(self.device0_num, I2C_IF_NUM,  cmd1, cmd2)
+        return ret
+    
+    def LEI2CSetParallelBuffer(self, mode):
+        ret = self.I2CSetParallelBuffer(self.device0_num, I2C_IF_NUM, mode)
+        return ret
+
+    def LEI2CSetExternalPrintControl(self, mode, cmd1, cmd2, framesLow, framesHigh):
+        ret = self.I2CSetExternalPrintControl(self.device0_num, I2C_IF_NUM, mode, cmd1, cmd2, framesLow, framesHigh)
+        return ret
+
+    def LE_yo_spidatastream_write(self, imageFileMask):
+        ret = self.yo_spidatastream_write(self.device0_num, imageFileMask)
+        return ret
+
+    def LECheck_SPI_RDY_Busy(self):
+        self.Check_SPI_RDY_Busy(self.device0_num, GPIO_IF_NUM)
+
+    def LECheck_SYS_RDY_Busy(self):
+        self.Check_SYS_RDY_Busy(self.device0_num, GPIO_IF_NUM)
+        
     def GetVersion(self):
         return __VERSION__
 
